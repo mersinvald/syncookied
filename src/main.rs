@@ -18,6 +18,7 @@ extern crate chrono;
 extern crate influent;
 extern crate concurrent_hash_map;
 extern crate url;
+extern crate siphasher;
 
 use std::fmt;
 use std::str::FromStr;
@@ -113,6 +114,7 @@ impl From<usize> for ConnState {
         }
     }
 }
+
 
 impl StateTable {
     fn new(size: usize) -> Self {
@@ -265,7 +267,7 @@ pub struct HostConfiguration {
     tcp_timestamp: u32,
     tcp_cookie_time: u32,
     hz: u32,
-    syncookie_secret: [[u32;17];2],
+    syncookie_secret: [[u64;2];2],
     state_table: StateTable,
     filters: Arc<Vec<(BpfJitFilter,filter::FilterAction)>>,
     default: filter::FilterAction,
@@ -280,7 +282,7 @@ impl HostConfiguration {
             tcp_timestamp: 0,
             tcp_cookie_time: 0,
             hz: 300,
-            syncookie_secret: [[0;17];2],
+            syncookie_secret: [[0;2];2],
             state_table: StateTable::new(1024 * 1024),
             filters: Arc::new(filters),
             default: default,

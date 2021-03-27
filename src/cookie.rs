@@ -4,10 +4,21 @@
 use std::mem;
 use std::net::Ipv4Addr;
 use std::num::Wrapping;
+use std::hash::Hasher;
+use siphasher::sip::SipHasher24;
 
 static MSSTAB: [u16;4] = [ 536, 1300, 1440, 1460 ];
+
 const COOKIEBITS: u32 = 24;	/* Upper bits store count */
-const COOKIEMASK: u32 = ((1 << COOKIEBITS) - 1);
+const COOKIEMASK: u32 = (1 << COOKIEBITS) - 1;
+
+const TS_OPT_WSCALE_MASK: u8 = 0xf;
+const TS_OPT_SACK: u32 = 1 << 4;
+const TS_OPT_ECN: u32 = 1 << 5;
+
+const TSBITS: u32 = 6;
+const TSMASK: u32 = (1 << TSBITS) - 1;
+
 const SHA_WORKSPACE_WORDS: usize = 16;
 
 #[allow(dead_code)]
@@ -15,29 +26,20 @@ const MAX_SYNCOOKIE_AGE: u32 = 2;
 
 #[inline]
 fn cookie_hash(source_addr: u32, dest_addr: u32, source_port: u16, dest_port: u16,
-                count: u32, secret: &[u32;17]) -> u32 {
-    let mut tmp: [u32; 16 + 5 + SHA_WORKSPACE_WORDS] = unsafe { mem::uninitialized() };
+                count: u32, secret: &[u64; 2]) -> u32 {
+    let mut hasher = SipHasher24::new_with_keys(secret[0], secret[1]);
+    hasher.write_u32(source_addr);
+    hasher.write_u32(dest_addr);
+    hasher.write_u32(((source_port as u32) << 16) + dest_port as u32);
+    hasher.write_u32(count);
 
-    tmp[0] = source_addr;
-    tmp[1] = dest_addr;
-    tmp[2] = ((source_port as u32) << 16) + dest_port as u32;
-    tmp[3] = count;
-    tmp[4..4+17].copy_from_slice(&secret[0..17]);
-    unsafe {
-        // TODO: use cargo features or runtime detection to choose the fastest
-        //
-        //::sha1::sha1_transform_ssse3(tmp.as_mut_ptr().offset(16), tmp.as_ptr() as *const u8, 1);
-        ::sha1::sha1_transform_platform(tmp.as_mut_ptr().offset(16), tmp.as_ptr() as *const u8, 1);
-        //::sha1::sha_transform(tmp.as_mut_ptr().offset(16), tmp.as_ptr() as *const u8, tmp.as_mut_ptr().offset(16 + 5));
-    }
-
-    tmp[17]
+    hasher.finish() as u32
 }
 
 #[inline]
 fn secure_tcp_syn_cookie(source_addr: u32, dest_addr: u32, source_port: u16,
                          dest_port: u16, sseq: u32, data: u32, tcp_cookie_time: u32,
-                         secret: &[[u32;17];2]) -> u32 {
+                         secret: &[[u64;2];2]) -> u32 {
     /*
      * Compute the secure sequence number.
      * The output should be:
@@ -57,7 +59,7 @@ fn secure_tcp_syn_cookie(source_addr: u32, dest_addr: u32, source_port: u16,
 #[inline]
 pub fn generate_cookie_init_sequence(source_addr: Ipv4Addr, dest_addr: Ipv4Addr,
                                      source_port: u16, dest_port: u16,
-                                     seq: u32, mss: u16, tcp_cookie_time: u32, secret: &[[u32;17];2]) -> (u32,u16) {
+                                     seq: u32, mss: u16, tcp_cookie_time: u32, secret: &[[u64; 2];2]) -> (u32,u16) {
     let mut mssind = 0;
     let mut mssval = 536;
 
@@ -79,7 +81,7 @@ pub fn generate_cookie_init_sequence(source_addr: Ipv4Addr, dest_addr: Ipv4Addr,
 #[inline]
 fn check_tcp_syn_cookie(cookie: u32, saddr: u32, daddr: u32,
                         sport: u16, dport: u16, sseq: u32,
-                        secret: &[[u32;17];2], cookie_time: u32) -> u32 {
+                        secret: &[[u64;2];2], cookie_time: u32) -> u32 {
     let diff: Wrapping<u32>;
     let count: Wrapping<u32> = Wrapping(cookie_time);
     let mut cookie = Wrapping(cookie);
@@ -102,7 +104,7 @@ fn check_tcp_syn_cookie(cookie: u32, saddr: u32, daddr: u32,
 #[inline]
 pub fn cookie_check(source_addr: Ipv4Addr, dest_addr: Ipv4Addr,
                     source_port: u16, dest_port: u16, seq: u32,
-                    cookie: u32, secret: &[[u32;17];2], cookie_time: u32) -> Option<&'static u16> {
+                    cookie: u32, secret: &[[u64;2];2], cookie_time: u32) -> Option<&'static u16> {
     let seq = seq - 1;
     let sa: u32 = source_addr.into();
     let da: u32 = dest_addr.into();
@@ -138,7 +140,7 @@ fn test_cookie_init() {
 /// TCP options encoded in timestamp
 #[inline]
 pub fn synproxy_init_timestamp_cookie(wscale: u8, sperm: bool, ecn: bool, tcp_time_stamp: u32) -> u32 {
-    let mut tsval: u32 = tcp_time_stamp & !0x3f;
+    let mut tsval: u32 = tcp_time_stamp & !TSMASK;
     let mut options: u32 = 0;
 
     if wscale != 0 {
@@ -148,18 +150,18 @@ pub fn synproxy_init_timestamp_cookie(wscale: u8, sperm: bool, ecn: bool, tcp_ti
     }
 
     if sperm {
-        options |= 1 << 4;
+        options |= TS_OPT_SACK;
     }
 
     if ecn {
-        options |= 1 << 5;
+        options |= TS_OPT_ECN;
     }
 
     tsval |= options;
     if tsval > tcp_time_stamp {
-        tsval >>= 6;
+        tsval >>= TSBITS;
         tsval -= 1;
-        tsval <<= 6;
+        tsval <<= TSBITS;
         tsval |= options;
     }
 

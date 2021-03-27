@@ -136,7 +136,7 @@ pub fn update(ip: Ipv4Addr, buf: Vec<u8>) -> Result<(),Box<::std::error::Error>>
     let mut jiffies = 0;
     let mut tcp_cookie_time = 0;
     let mut hz = 300;
-    let mut syncookie_secret: [[u32;17];2] = [[0;17];2];
+    let mut syncookie_secret: [[u64;2];2] = [[0;2];2];
 
     debug!("[uptime] [{}] Updating secrets", &ip);
     let reader = BufReader::new(&buf[..]);
@@ -158,7 +158,7 @@ pub fn update(ip: Ipv4Addr, buf: Vec<u8>) -> Result<(),Box<::std::error::Error>>
                     if word == "" {
                         continue;
                     }
-                    syncookie_secret[0][idx] = try!(u32::from_str_radix(word, 16));
+                    syncookie_secret[0][idx] = try!(u64::from_str_radix(word, 16));
                 }
             },
             2 => {
@@ -166,7 +166,7 @@ pub fn update(ip: Ipv4Addr, buf: Vec<u8>) -> Result<(),Box<::std::error::Error>>
                     if word == "" {
                         continue;
                     }
-                    syncookie_secret[1][idx] = try!(u32::from_str_radix(word, 16));
+                    syncookie_secret[1][idx] = try!(u64::from_str_radix(word, 16));
                 }
             },
             _ => {},

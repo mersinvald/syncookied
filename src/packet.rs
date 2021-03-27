@@ -457,12 +457,12 @@ fn build_reply_fast(pkt: &IngressPacket, source_mac: MacAddr, reply: &mut [u8]) 
         /* build tcp packet */
         let mut cookie_time: u32 = 0;
         let mut my_tcp_time: u32 = 0;
-        let mut secret: [[u32;17];2] = unsafe { mem::uninitialized() };
+        let mut secret: [[u64;2];2] = unsafe { mem::uninitialized() };
         ::RoutingTable::with_host_config(pkt.ipv4_destination, |hc| {
             cookie_time = hc.tcp_cookie_time;
             my_tcp_time = hc.tcp_timestamp;
-            secret[0].copy_from_slice(&hc.syncookie_secret[0][0..17]);
-            secret[1].copy_from_slice(&hc.syncookie_secret[1][0..17]);
+            secret[0].copy_from_slice(&hc.syncookie_secret[0][0..2]);
+            secret[1].copy_from_slice(&hc.syncookie_secret[1][0..2]);
         });
         let (seq_num, mss_val) = cookie::generate_cookie_init_sequence(
             pkt.ipv4_source, pkt.ipv4_destination,
@@ -545,12 +545,12 @@ fn build_reply(pkt: &IngressPacket, source_mac: MacAddr, reply: &mut [u8]) -> us
         use std::mem;
         /* build tcp packet */
         let mut cookie_time = 0;
-        let mut secret: [[u32;17];2] = unsafe { mem::uninitialized() };
+        let mut secret: [[u64;2];2] = unsafe { mem::uninitialized() };
 
         ::RoutingTable::with_host_config(pkt.ipv4_destination, |hc| {
             cookie_time = hc.tcp_cookie_time;
-            secret[0].copy_from_slice(&hc.syncookie_secret[0][0..17]);
-            secret[1].copy_from_slice(&hc.syncookie_secret[1][0..17]);
+            secret[0].copy_from_slice(&hc.syncookie_secret[0][0..2]);
+            secret[1].copy_from_slice(&hc.syncookie_secret[1][0..2]);
         });
         let (seq_num, mss_val) = cookie::generate_cookie_init_sequence(
             pkt.ipv4_source, pkt.ipv4_destination,
