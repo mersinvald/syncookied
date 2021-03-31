@@ -28,7 +28,7 @@ concurrent-hash-map = "0.0.6"
 url = "1.2.0"
 
 [dependencies.scheduler]
-git = "https://github.com/polachok/rust-scheduler"
+git = "https://github.com/mersinvald/rust-scheduler"
 branch = "portability"
 
 [dependencies.influent]

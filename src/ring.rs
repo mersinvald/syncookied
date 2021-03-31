@@ -84,7 +84,7 @@ impl<'a> Worker<'a> {
         ]
     }
 
-    fn update_metrics<'t>(stats: &'t RingStats, metrics: &mut [metrics::Metric<'a>;14], seconds: u32) {
+    fn update_metrics(stats: &RingStats, metrics: &mut [metrics::Metric<'_>;14], seconds: u32) {
         metrics[0].set_value((stats.received / seconds) as i64);
         metrics[1].set_value((stats.dropped / seconds) as i64);
         metrics[2].set_value((stats.dropped_mac / seconds) as i64);
