@@ -88,7 +88,8 @@ pub struct IngressPacket {
 impl Default for IngressPacket {
     fn default() -> Self {
         use std::mem;
-        unsafe { mem::uninitialized() }
+        // TODO: fill bools to make Rust happy and use uninitialized
+        unsafe { mem::zeroed() }
     }
 }
 
